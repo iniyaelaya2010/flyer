@@ -1,980 +1,715 @@
-/**
- * UI Module
- * Handles all DOM updates and UI interactions
- */
+class UI {
+  constructor(database, dataManager) {
+    this.db = database;
+    this.data = dataManager;
+    this.currentPage = 'delivery';
+    this.currentUserId = null;
+    this.currentSessionId = null;
+    this.wakeLock = null;
+  }
 
-class UIManager {
-    constructor(dataManager) {
-        this.data = dataManager;
-        this.currentDateKey = null;
-        this.undoTimeout = null;
+  async init() {
+    this.cacheElements();
+    this.bindEvents();
+    await this.loadInitialState();
+    this.updateOnlineStatus();
+    window.addEventListener('online', () => this.updateOnlineStatus());
+    window.addEventListener('offline', () => this.updateOnlineStatus());
+  }
+
+  cacheElements() {
+    this.navButtons = document.querySelectorAll('.nav-btn');
+    this.pages = document.querySelectorAll('.page');
+
+    this.currentUserNameEl = document.getElementById('current-user-name');
+    this.progressDeliveredEl = document.getElementById('progress-delivered');
+    this.progressTotalEl = document.getElementById('progress-total');
+    this.progressPercentEl = document.getElementById('progress-percent');
+    this.progressFillEl = document.getElementById('progress-fill');
+    this.statDeliveredEl = document.getElementById('stat-delivered');
+    this.statRevisitEl = document.getElementById('stat-revisit');
+    this.statRemainingEl = document.getElementById('stat-remaining');
+
+    this.weeklyTimerTextEl = document.getElementById('weekly-timer-text');
+    this.deadlineTextEl = document.getElementById('deadline-text');
+    this.onlineStatusEl = document.getElementById('online-status');
+
+    this.nextAddressLine1El = document.getElementById('next-address-line-1');
+    this.nextAddressLine2El = document.getElementById('next-address-line-2');
+    this.nextAddressLine3El = document.getElementById('next-address-line-3');
+
+    this.toastContainer = document.getElementById('toast-container');
+    this.undoNotification = document.getElementById('undo-notification');
+    this.undoTextEl = document.getElementById('undo-text');
+    this.btnUndo = document.getElementById('btn-undo');
+
+    this.btnDelivered = document.getElementById('btn-delivered');
+    this.btnRevisit = document.getElementById('btn-revisit');
+    this.btnNote = document.getElementById('btn-note');
+    this.btnNavigate = document.getElementById('btn-navigate');
+
+    this.noteModal = document.getElementById('note-modal');
+    this.noteModalAddressEl = document.getElementById('note-modal-address');
+    this.noteTextEl = document.getElementById('note-text');
+    this.noteModalClose = document.getElementById('note-modal-close');
+    this.noteModalCancel = document.getElementById('note-modal-cancel');
+    this.noteModalSave = document.getElementById('note-modal-save');
+
+    this.usersContainer = document.getElementById('users-container');
+    this.newUserNameEl = document.getElementById('new-user-name');
+    this.btnAddUser = document.getElementById('btn-add-user');
+
+    this.historyContainer = document.getElementById('history-container');
+    this.historyPeriodEl = document.getElementById('history-period');
+    this.historyUserEl = document.getElementById('history-user');
+    this.historyStatusEl = document.getElementById('history-status');
+    this.historyAddressSearchEl = document.getElementById('history-address-search');
+    this.historyStartDateEl = document.getElementById('history-start-date');
+    this.historyEndDateEl = document.getElementById('history-end-date');
+    this.customDateRangeEl = document.getElementById('custom-date-range');
+    this.btnApplyHistory = document.getElementById('btn-apply-history');
+    this.btnClearHistory = document.getElementById('btn-clear-history');
+
+    this.statisticsContainer = document.getElementById('statistics-container');
+    this.periodButtons = document.querySelectorAll('.period-btn');
+
+    this.routeSearchInput = document.getElementById('route-search-input');
+    this.addressesContainer = document.getElementById('addresses-container');
+    this.btnOriginalOrder = document.getElementById('btn-original-order');
+    this.btnNearestFirst = document.getElementById('btn-nearest-first');
+    this.btnFarthestFirst = document.getElementById('btn-farthest-first');
+
+    this.importTextEl = document.getElementById('import-text');
+    this.btnPreviewImport = document.getElementById('btn-preview-import');
+    this.importSummaryEl = document.getElementById('import-summary');
+
+    this.weeklyStartEl = document.getElementById('weekly-start');
+    this.weeklyEndEl = document.getElementById('weekly-end');
+    this.btnSaveWeekly = document.getElementById('btn-save-weekly');
+
+    this.btnExportBackup = document.getElementById('btn-export-backup');
+    this.btnImportBackup = document.getElementById('btn-import-backup');
+    this.backupFileEl = document.getElementById('backup-file');
+    this.btnExportCsv = document.getElementById('btn-export-csv');
+
+    this.btnToggleWakeLock = document.getElementById('btn-toggle-wake-lock');
+    this.wakeLockStatusEl = document.getElementById('wake-lock-status');
+
+    this.continueSessionSection = document.getElementById('continue-session-section');
+    this.continueSessionTextEl = document.getElementById('continue-session-text');
+    this.btnContinueSession = document.getElementById('btn-continue-session');
+  }
+
+  bindEvents() {
+    this.navButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.dataset.page;
+        this.goToPage(page);
+      });
+    });
+
+    this.btnDelivered.addEventListener('click', () => this.handleDelivered());
+    this.btnRevisit.addEventListener('click', () => this.handleRevisit());
+    this.btnNote.addEventListener('click', () => this.openNoteModal());
+    this.btnNavigate.addEventListener('click', () => this.showToast('Navigation screen not implemented yet (no GPS).', 'info'));
+
+    this.noteModalClose.addEventListener('click', () => this.closeNoteModal());
+    this.noteModalCancel.addEventListener('click', () => this.closeNoteModal());
+    this.noteModalSave.addEventListener('click', () => this.saveNote());
+
+    this.btnAddUser.addEventListener('click', () => this.addUser());
+
+    this.historyPeriodEl.addEventListener('change', () => this.updateCustomDateVisibility());
+    this.btnApplyHistory.addEventListener('click', () => this.updateHistory());
+    this.btnClearHistory.addEventListener('click', () => this.clearHistoryFilters());
+
+    this.periodButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.periodButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.updateStatistics(btn.dataset.period);
+      });
+    });
+
+    this.btnOriginalOrder.addEventListener('click', () => this.loadAddresses('original'));
+    this.btnNearestFirst.addEventListener('click', () => this.loadAddresses('nearest'));
+    this.btnFarthestFirst.addEventListener('click', () => this.loadAddresses('farthest'));
+
+    this.routeSearchInput.addEventListener('input', () => this.loadAddresses());
+
+    this.btnPreviewImport.addEventListener('click', () => this.previewImport());
+
+    this.btnSaveWeekly.addEventListener('click', () => this.saveWeeklyWindow());
+
+    this.btnExportBackup.addEventListener('click', () => this.exportBackup());
+    this.btnImportBackup.addEventListener('click', () => this.backupFileEl.click());
+    this.backupFileEl.addEventListener('change', (e) => this.importBackup(e));
+
+    this.btnExportCsv.addEventListener('click', () => this.exportCsv());
+
+    this.btnToggleWakeLock.addEventListener('click', () => this.toggleWakeLock());
+
+    this.btnUndo.addEventListener('click', () => this.handleUndo());
+
+    this.btnContinueSession.addEventListener('click', () => this.resumeSession());
+  }
+
+  async loadInitialState() {
+    // Load users
+    const users = await this.data.getUsers();
+    this.renderUsers(users);
+
+    // Active user
+    const activeUser = await this.data.getActiveUser();
+    if (activeUser) {
+      this.currentUserId = activeUser.id;
+      this.currentUserNameEl.textContent = activeUser.name;
+    } else {
+      this.currentUserNameEl.textContent = 'No user';
     }
 
-    /**
-     * Initialize UI
-     */
-    async init() {
-        this.setupEventListeners();
-        await this.updateAll();
+    // Weekly window
+    await this.updateWeeklyTimer();
+
+    // Progress + next address
+    await this.updateAll();
+
+    // Continue session
+    await this.checkContinueSession();
+  }
+
+  async updateAll() {
+    await this.updateProgress();
+    await this.updateNextAddress();
+    await this.updateHistory();
+    await this.updateStatistics('today');
+    await this.loadAddresses();
+  }
+
+  goToPage(pageName) {
+    this.currentPage = pageName;
+    this.pages.forEach(p => p.classList.remove('active'));
+    document.getElementById(`page-${pageName}`).classList.add('active');
+
+    this.navButtons.forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.nav-btn[data-page="${pageName}"]`).classList.add('active');
+  }
+
+  updateOnlineStatus() {
+    if (navigator.onLine) {
+      this.onlineStatusEl.textContent = '🟢 Online';
+      this.onlineStatusEl.classList.remove('status-offline');
+      this.onlineStatusEl.classList.add('status-online');
+    } else {
+      this.onlineStatusEl.textContent = '🔴 Offline';
+      this.onlineStatusEl.classList.remove('status-online');
+      this.onlineStatusEl.classList.add('status-offline');
     }
+  }
 
-    /**
-     * Setup all event listeners
-     */
-    setupEventListeners() {
-        // Navigation
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const page = e.currentTarget.dataset.page;
-                this.goToPage(page);
-            });
-        });
+  async updateProgress() {
+    const progress = await this.data.getTodayProgress();
+    this.progressDeliveredEl.textContent = progress.delivered;
+    this.progressTotalEl.textContent = progress.total;
+    this.progressPercentEl.textContent = `${progress.percentage}%`;
+    this.progressFillEl.style.width = `${progress.percentage}%`;
+    this.statDeliveredEl.textContent = progress.delivered;
+    this.statRevisitEl.textContent = progress.revisit;
+    this.statRemainingEl.textContent = progress.remaining;
+  }
 
-        // Route page
-        document.getElementById('user-select').addEventListener('change', async (e) => {
-            if (e.target.value) {
-                await this.data.setActiveUser(e.target.value);
-                await this.updateAll();
-            }
-        });
-
-        document.getElementById('address-search').addEventListener('input', async (e) => {
-            await this.updateAddressesList(e.target.value);
-        });
-
-        // Users page
-        document.getElementById('add-user-btn').addEventListener('click', async () => {
-            const input = document.getElementById('new-user-input');
-            const name = input.value;
-            if (!name.trim()) return;
-
-            try {
-                await this.data.addUser(name);
-                input.value = '';
-                await this.updateAll();
-                this.showToast('User added successfully', 'success');
-            } catch (error) {
-                this.showToast(error.message, 'error');
-            }
-        });
-
-        // History page filters
-        document.getElementById('apply-filters').addEventListener('click', async () => {
-            await this.updateHistory();
-        });
-
-        document.getElementById('clear-filters').addEventListener('click', async () => {
-            document.getElementById('filter-user').value = '';
-            document.getElementById('filter-date-range').value = '';
-            document.getElementById('filter-status').value = '';
-            document.getElementById('filter-address').value = '';
-            document.getElementById('filter-start-date').value = '';
-            document.getElementById('filter-end-date').value = '';
-            document.getElementById('custom-date-range').style.display = 'none';
-            await this.updateHistory();
-        });
-
-        document.getElementById('filter-date-range').addEventListener('change', (e) => {
-            const customRange = document.getElementById('custom-date-range');
-            customRange.style.display = e.target.value === 'custom' ? 'grid' : 'none';
-        });
-
-        // Statistics page
-        document.querySelectorAll('.period-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-                this.updateStatistics(e.currentTarget.dataset.period);
-            });
-        });
-
-        // Settings page
-        document.getElementById('import-addresses-btn').addEventListener('click', async () => {
-            await this.handleAddressImport();
-        });
-
-        document.getElementById('view-addresses-btn').addEventListener('click', () => {
-            this.openAddressesModal();
-        });
-
-        document.getElementById('add-address-btn').addEventListener('click', async () => {
-            await this.handleAddAddress();
-        });
-
-        document.getElementById('reset-route-btn').addEventListener('click', async () => {
-            this.showConfirmation(
-                'Reset Route',
-                'Delete all addresses and start over?',
-                async () => {
-                    await this.data.resetRoute();
-                    await this.updateAll();
-                    this.showToast('Route reset successfully', 'success');
-                }
-            );
-        });
-
-        document.getElementById('backup-btn').addEventListener('click', async () => {
-            await this.handleBackup();
-        });
-
-        document.getElementById('restore-btn').addEventListener('click', () => {
-            document.getElementById('restore-file').click();
-        });
-
-        document.getElementById('restore-file').addEventListener('change', async (e) => {
-            await this.handleRestore(e);
-        });
-
-        document.getElementById('export-csv-btn').addEventListener('click', async () => {
-            await this.handleExportCSV();
-        });
-
-        document.getElementById('delete-all-btn').addEventListener('click', async () => {
-            this.showConfirmation(
-                'Delete All Data',
-                'This will permanently delete all users, addresses, and delivery history. This cannot be undone.',
-                async () => {
-                    try {
-                        await this.data.db.clearMultiple(['users', 'addresses', 'deliveryEvents', 'notes', 'settings']);
-                        await this.updateAll();
-                        this.showToast('All data deleted', 'success');
-                    } catch (error) {
-                        this.showToast('Failed to delete data: ' + error.message, 'error');
-                    }
-                }
-            );
-        });
-
-        // Delivery modal
-        document.getElementById('modal-close-btn').addEventListener('click', () => {
-            this.closeDeliveryModal();
-        });
-
-        document.getElementById('modal-delivered-btn').addEventListener('click', async () => {
-            await this.handleDeliveryAction('delivered');
-        });
-
-        document.getElementById('modal-revisit-btn').addEventListener('click', async () => {
-            await this.handleDeliveryAction('revisit');
-        });
-
-        // Addresses modal
-        document.getElementById('addresses-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'addresses-modal') {
-                this.closeAddressesModal();
-            }
-        });
+  async updateNextAddress() {
+    const addresses = await this.data.getAddresses();
+    if (addresses.length === 0) {
+      this.nextAddressLine1El.textContent = 'No addresses';
+      this.nextAddressLine2El.textContent = '';
+      this.nextAddressLine3El.textContent = '';
+      return;
     }
+    const next = addresses[0]; // simple: first in order
+    const parts = next.address.split(',');
+    this.nextAddressLine1El.textContent = parts[0] || next.address;
+    this.nextAddressLine2El.textContent = parts[1] || '';
+    this.nextAddressLine3El.textContent = parts.slice(2).join(', ') || '';
+  }
 
-    /**
-     * Navigate to page
-     */
-    goToPage(pageName) {
-        // Hide all pages
-        document.querySelectorAll('.page').forEach(page => {
-            page.classList.remove('active');
-        });
+  async handleDelivered() {
+    if (!this.currentUserId) {
+      this.showToast('Select a user first.', 'warning');
+      this.goToPage('users');
+      return;
+    }
+    const addresses = await this.data.getAddresses();
+    if (addresses.length === 0) {
+      this.showToast('No addresses in route.', 'warning');
+      return;
+    }
+    const next = addresses[0];
+    const event = await this.data.recordDelivery(next.id, this.currentUserId);
+    this.showToast('Delivered recorded.', 'success');
+    this.showUndo('Delivered', event);
+    await this.updateAll();
+  }
 
-        // Remove active class from nav buttons
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
+  async handleRevisit() {
+    if (!this.currentUserId) {
+      this.showToast('Select a user first.', 'warning');
+      this.goToPage('users');
+      return;
+    }
+    const addresses = await this.data.getAddresses();
+    if (addresses.length === 0) {
+      this.showToast('No addresses in route.', 'warning');
+      return;
+    }
+    const next = addresses[0];
+    const event = await this.data.recordRevisit(next.id, this.currentUserId);
+    this.showToast('Revisit recorded.', 'info');
+    this.showUndo('Revisit', event);
+    await this.updateAll();
+  }
 
-        // Show selected page
-        const page = document.getElementById(`page-${pageName}`);
-        if (page) {
-            page.classList.add('active');
+  openNoteModal() {
+    this.noteModalAddressEl.textContent = this.nextAddressLine1El.textContent;
+    this.noteTextEl.value = '';
+    this.noteModal.hidden = false;
+  }
+
+  closeNoteModal() {
+    this.noteModal.hidden = true;
+  }
+
+  async saveNote() {
+    const text = this.noteTextEl.value.trim();
+    if (!text) {
+      this.showToast('Note cannot be empty.', 'warning');
+      return;
+    }
+    const addresses = await this.data.getAddresses();
+    if (addresses.length === 0) {
+      this.showToast('No addresses in route.', 'warning');
+      return;
+    }
+    const next = addresses[0];
+    await this.data.addNote(next.id, this.currentUserId, text);
+    this.showToast('Note saved.', 'success');
+    this.closeNoteModal();
+  }
+
+  showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    this.toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.remove();
+    }, 3000);
+  }
+
+  showUndo(action, event) {
+    this.undoTextEl.textContent = `${action} recorded for ${event.address}.`;
+    this.undoNotification.hidden = false;
+    setTimeout(() => {
+      this.undoNotification.hidden = true;
+    }, 4000);
+  }
+
+  async handleUndo() {
+    try {
+      await this.data.undoLastAction();
+      this.showToast('Last action undone.', 'success');
+      this.undoNotification.hidden = true;
+      await this.updateAll();
+    } catch (e) {
+      this.showToast(e.message, 'error');
+    }
+  }
+
+  async addUser() {
+    const name = this.newUserNameEl.value.trim();
+    if (!name) {
+      this.showToast('User name cannot be empty.', 'warning');
+      return;
+    }
+    try {
+      const user = await this.data.addUser(name);
+      this.newUserNameEl.value = '';
+      await this.renderUsers(await this.data.getUsers());
+      await this.data.setActiveUser(user.id);
+      this.currentUserId = user.id;
+      this.currentUserNameEl.textContent = user.name;
+      this.showToast('User added and set active.', 'success');
+    } catch (e) {
+      this.showToast(e.message, 'error');
+    }
+  }
+
+  async renderUsers(users) {
+    this.usersContainer.innerHTML = '';
+    this.historyUserEl.innerHTML = '<option value="">All</option>';
+    users.forEach(user => {
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      item.innerHTML = `
+        <div class="user-info">
+          <div class="user-name">${user.name}</div>
+        </div>
+        <div class="user-actions">
+          <button class="btn btn-secondary btn-small" data-action="set" data-id="${user.id}">Set Active</button>
+          <button class="btn btn-danger btn-small" data-action="delete" data-id="${user.id}">Delete</button>
+        </div>
+      `;
+      this.usersContainer.appendChild(item);
+
+      const opt = document.createElement('option');
+      opt.value = user.id;
+      opt.textContent = user.name;
+      this.historyUserEl.appendChild(opt);
+    });
+
+    this.usersContainer.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (action === 'set') {
+          const user = await this.data.setActiveUser(id);
+          this.currentUserId = user.id;
+          this.currentUserNameEl.textContent = user.name;
+          this.showToast('Active user updated.', 'success');
+        } else if (action === 'delete') {
+          try {
+            await this.data.deleteUser(id);
+            this.showToast('User deleted.', 'success');
+            await this.renderUsers(await this.data.getUsers());
+          } catch (e) {
+            this.showToast(e.message, 'error');
+          }
         }
+      });
+    });
+  }
 
-        // Mark nav button as active
-        const navBtn = document.querySelector(`.nav-btn[data-page="${pageName}"]`);
-        if (navBtn) {
-            navBtn.classList.add('active');
+  updateCustomDateVisibility() {
+    const val = this.historyPeriodEl.value;
+    this.customDateRangeEl.hidden = val !== 'custom';
+  }
+
+  async updateHistory() {
+    // For now, simple: get all history via data.getHistory(filters)
+    const filters = {};
+    const period = this.historyPeriodEl.value;
+    const userId = this.historyUserEl.value || null;
+    const status = this.historyStatusEl.value || null;
+    const addressSearch = this.historyAddressSearchEl.value.trim() || null;
+
+    if (userId) filters.userId = userId;
+    if (status) filters.action = status;
+    if (addressSearch) filters.addressSearch = addressSearch;
+
+    // Date filters can be added later
+    const events = await this.data.getHistory(filters);
+    this.historyContainer.innerHTML = '';
+
+    if (events.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `
+        <div class="empty-state-icon">📭</div>
+        <h2>No history</h2>
+        <p>No delivery events match your filters.</p>
+      `;
+      this.historyContainer.appendChild(empty);
+      return;
+    }
+
+    events.forEach(ev => {
+      const item = document.createElement('div');
+      item.className = 'history-event';
+      item.innerHTML = `
+        <div class="event-address">${ev.address}</div>
+        <span class="event-status ${ev.action}">${ev.action === 'delivered' ? 'Delivered' : 'Revisit'}</span>
+        <div class="event-meta">
+          <span class="event-user">${ev.userName}</span>
+          <span>${this.data.formatDate(ev.dateKey)} • ${this.data.formatTime(ev.timestamp)}</span>
+        </div>
+      `;
+      this.historyContainer.appendChild(item);
+    });
+  }
+
+  clearHistoryFilters() {
+    this.historyPeriodEl.value = 'today';
+    this.historyUserEl.value = '';
+    this.historyStatusEl.value = '';
+    this.historyAddressSearchEl.value = '';
+    this.updateCustomDateVisibility();
+    this.updateHistory();
+  }
+
+  async updateStatistics(period) {
+    let range;
+    if (period === 'today') {
+      const today = this.data._getToday();
+      range = { start: today, end: today };
+    } else if (period === 'week') {
+      range = this.data.getThisWeekRange();
+    } else {
+      range = this.data.getThisMonthRange();
+    }
+    const stats = await this.data.getStatisticsForPeriod(range.start, range.end);
+    this.statisticsContainer.innerHTML = '';
+
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.innerHTML = `
+      <div class="stat-card-title">${period === 'today' ? 'Today' : period === 'week' ? 'This Week' : 'This Month'}</div>
+      <div class="stat-card-value">${stats.totalDelivered} delivered</div>
+      <div class="stat-card-subtext">
+        Revisits: ${stats.totalRevisits}<br>
+        Unique addresses delivered: ${stats.uniqueAddressesDeliveredCount}<br>
+        Completion: ${stats.percentage}%
+      </div>
+    `;
+    this.statisticsContainer.appendChild(card);
+  }
+
+  async loadAddresses(orderMode = 'current') {
+    let addresses = await this.data.getAddresses();
+    const search = this.routeSearchInput.value.trim().toLowerCase();
+    if (search) {
+      addresses = addresses.filter(a => a.address.toLowerCase().includes(search));
+    }
+
+    // For now, ignore distance sorting (no coordinates yet)
+    this.addressesContainer.innerHTML = '';
+    if (addresses.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `
+        <div class="empty-state-icon">📭</div>
+        <h2>No addresses</h2>
+        <p>Add or import addresses in the route page.</p>
+      `;
+      this.addressesContainer.appendChild(empty);
+      return;
+    }
+
+    addresses.forEach((addr, index) => {
+      const card = document.createElement('div');
+      card.className = 'address-card';
+      card.innerHTML = `
+        <div class="address-order">#${index + 1}</div>
+        <div class="address-text">${addr.address}</div>
+        <div class="address-actions">
+          <button class="btn btn-secondary btn-small" data-action="edit" data-id="${addr.id}">Edit</button>
+          <button class="btn btn-warning btn-small" data-action="deactivate" data-id="${addr.id}">Deactivate</button>
+        </div>
+      `;
+      this.addressesContainer.appendChild(card);
+    });
+
+    this.addressesContainer.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (action === 'edit') {
+          const addr = await this.data.getAddress(id);
+          const newText = prompt('Edit address:', addr.address);
+          if (newText !== null) {
+            await this.data.updateAddress(id, newText);
+            this.showToast('Address updated.', 'success');
+            await this.loadAddresses();
+          }
+        } else if (action === 'deactivate') {
+          await this.data.deleteAddress(id);
+          this.showToast('Address deactivated.', 'success');
+          await this.loadAddresses();
         }
+      });
+    });
+  }
 
-        // Update page-specific content
-        if (pageName === 'history') {
-            this.updateHistory();
-        } else if (pageName === 'statistics') {
-            this.updateStatistics('today');
-        } else if (pageName === 'users') {
-            this.updateUsers();
-        }
+  previewImport() {
+    const text = this.importTextEl.value;
+    if (!text.trim()) {
+      this.showToast('Paste addresses first.', 'warning');
+      return;
+    }
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    const unique = new Set(lines);
+    const duplicates = lines.length - unique.size;
+    this.importSummaryEl.textContent = `${lines.length} addresses found. ${duplicates} possible duplicates.`;
+    if (lines.length > 0) {
+      this.showToast('Import preview ready. Click to import.', 'info');
+      // For now, auto-import
+      this.data.importAddresses(text).then(() => {
+        this.showToast('Addresses imported.', 'success');
+        this.importTextEl.value = '';
+        this.loadAddresses();
+      }).catch(e => {
+        this.showToast(e.message, 'error');
+      });
+    }
+  }
+
+  async saveWeeklyWindow() {
+    const start = this.weeklyStartEl.value;
+    const end = this.weeklyEndEl.value;
+    if (!start || !end) {
+      this.showToast('Set both start and end.', 'warning');
+      return;
+    }
+    await this.db.setSetting('weeklyStart', start);
+    await this.db.setSetting('weeklyEnd', end);
+    this.showToast('Weekly window saved.', 'success');
+    await this.updateWeeklyTimer();
+  }
+
+  async updateWeeklyTimer() {
+    const startStr = await this.db.getSetting('weeklyStart');
+    const endStr = await this.db.getSetting('weeklyEnd');
+    if (!startStr || !endStr) {
+      this.weeklyTimerTextEl.textContent = 'Delivery window not set.';
+      this.deadlineTextEl.textContent = '';
+      return;
+    }
+    const tz = 'America/Vancouver';
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    const now = new Date();
+
+    if (now < start) {
+      const diff = start - now;
+      this.weeklyTimerTextEl.textContent = `Delivery starts in ${this.formatDuration(diff)}`;
+      this.deadlineTextEl.textContent = '';
+    } else if (now >= start && now <= end) {
+      const diff = end - now;
+      this.weeklyTimerTextEl.textContent = `${this.formatDuration(diff)} remaining`;
+      this.deadlineTextEl.textContent = 'Delivery window open.';
+    } else {
+      this.weeklyTimerTextEl.textContent = 'DELIVERY WINDOW CLOSED';
+      this.deadlineTextEl.textContent = 'Next period will start at the next configured window.';
+    }
+  }
+
+  formatDuration(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    return parts.join(' ') || '0m';
+  }
+
+  async exportBackup() {
+    const users = await this.db.getAll('users');
+    const addresses = await this.db.getAll('addresses');
+    const sessions = await this.db.getAll('sessions');
+    const events = await this.db.getAll('events');
+    const notes = await this.db.getAll('notes');
+    const settings = await this.db.getAll('settings');
+
+    const backup = { users, addresses, sessions, events, notes, settings };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'flyer-backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async importBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!confirm('Restore backup? This will overwrite current data.')) return;
+
+    const stores = ['users', 'addresses', 'sessions', 'events', 'notes', 'settings'];
+    for (const store of stores) {
+      const all = await this.db.getAll(store);
+      for (const item of all) {
+        await this.db.delete(store, item.id || item.key);
+      }
     }
 
-    /**
-     * Update everything
-     */
-    async updateAll() {
-        try {
-            this.currentDateKey = this.data._getToday();
-            await this.updateUserSelector();
-            await this.updateProgressSection();
-            await this.updateAddressesList();
-            await this.updateSettings();
-            await this.updateUsers();
-        } catch (error) {
-            console.error('Error updating UI:', error);
-            this.showToast('Failed to update: ' + error.message, 'error');
-        }
+    for (const user of backup.users || []) await this.db.write('users', user);
+    for (const addr of backup.addresses || []) await this.db.write('addresses', addr);
+    for (const s of backup.sessions || []) await this.db.write('sessions', s);
+    for (const e of backup.events || []) await this.db.write('events', e);
+    for (const n of backup.notes || []) await this.db.write('notes', n);
+    for (const set of backup.settings || []) await this.db.write('settings', set);
+
+    this.showToast('Backup restored.', 'success');
+    await this.updateAll();
+  }
+
+  async exportCsv() {
+    const events = await this.db.getAll('events');
+    if (events.length === 0) {
+      this.showToast('No events to export.', 'warning');
+      return;
     }
+    const rows = [
+      ['#', 'Address', 'Status', 'Date', 'Time', 'User']
+    ];
+    events.forEach((ev, i) => {
+      const date = this.data.formatDate(ev.dateKey);
+      const time = this.data.formatTime(ev.timestamp);
+      rows.push([i + 1, ev.address, ev.action === 'delivered' ? 'Delivered' : 'Revisit', date, time, ev.userName]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'flyer-week.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-    /**
-     * Update user selector dropdown
-     */
-    async updateUserSelector() {
-        const users = await this.data.getUsers();
-        const select = document.getElementById('user-select');
-        const activeUser = await this.data.getActiveUser();
-
-        select.innerHTML = '<option value="">-- Select User --</option>';
-        users.forEach(user => {
-            const option = document.createElement('option');
-            option.value = user.id;
-            option.textContent = user.name;
-            select.appendChild(option);
-        });
-
-        if (activeUser) {
-            select.value = activeUser.id;
-        }
+  async toggleWakeLock() {
+    if (!('wakeLock' in navigator)) {
+      this.showToast('Wake lock not supported on this browser.', 'warning');
+      return;
     }
-
-    /**
-     * Update progress section
-     */
-    async updateProgressSection() {
-        const progress = await this.data.getTodayProgress();
-
-        document.getElementById('delivered-count').textContent = progress.delivered;
-        document.getElementById('total-count').textContent = progress.total;
-        document.getElementById('progress-fill').style.width = progress.percentage + '%';
-        document.getElementById('progress-percentage').textContent = progress.percentage + '%';
-        document.getElementById('stat-delivered').textContent = progress.delivered;
-        document.getElementById('stat-revisit').textContent = progress.revisit;
-        document.getElementById('stat-remaining').textContent = progress.remaining;
+    try {
+      if (this.wakeLock) {
+        await this.wakeLock.release();
+        this.wakeLock = null;
+        this.wakeLockStatusEl.textContent = 'Screen awake: off';
+      } else {
+        this.wakeLock = await navigator.wakeLock.request('screen');
+        this.wakeLockStatusEl.textContent = 'Screen awake: on';
+      }
+    } catch (e) {
+      this.showToast('Failed to toggle wake lock.', 'error');
     }
+  }
 
-    /**
-     * Update addresses list
-     */
-    async updateAddressesList(searchTerm = '') {
-        const addresses = await this.data.getAddresses();
-        const container = document.getElementById('addresses-container');
-        const emptyState = document.getElementById('route-empty-state');
-
-        if (addresses.length === 0) {
-            container.innerHTML = '';
-            emptyState.style.display = 'flex';
-            return;
-        }
-
-        emptyState.style.display = 'none';
-
-        const searchLower = searchTerm.toLowerCase();
-        const filtered = addresses.filter(addr => 
-            !searchTerm || addr.address.toLowerCase().includes(searchLower)
-        );
-
-        container.innerHTML = '';
-
-        for (const address of filtered) {
-            const status = await this.data.getAddressStatus(address.id, this.currentDateKey);
-            const card = this.createAddressCard(address, status);
-            container.appendChild(card);
-        }
+  async checkContinueSession() {
+    // Simple version: if there are events today, offer "continue"
+    const today = this.data._getToday();
+    const events = await this.data.getEventsForDate(today);
+    if (events.length === 0) {
+      this.continueSessionSection.hidden = true;
+      return;
     }
-
-    /**
-     * Create address card element
-     */
-    createAddressCard(address, status) {
-        const card = document.createElement('div');
-        card.className = 'address-card';
-        card.onclick = () => this.openDeliveryModal(address.id);
-
-        const orderDiv = document.createElement('div');
-        orderDiv.className = 'address-order';
-        orderDiv.textContent = `#${address.order}`;
-
-        const textDiv = document.createElement('div');
-        textDiv.className = 'address-text';
-        textDiv.textContent = address.address;
-
-        const statusDiv = document.createElement('div');
-        statusDiv.className = `address-status ${status}`;
-        statusDiv.textContent = this.getStatusLabel(status);
-
-        card.appendChild(orderDiv);
-        card.appendChild(textDiv);
-        card.appendChild(statusDiv);
-
-        return card;
-    }
-
-    /**
-     * Get status label text
-     */
-    getStatusLabel(status) {
-        const labels = {
-            'not-started': 'Not Started',
-            'delivered': '✓ Delivered',
-            'revisit': '↻ Revisit'
-        };
-        return labels[status] || 'Unknown';
-    }
-
-    /**
-     * Open delivery modal
-     */
-    async openDeliveryModal(addressId) {
-        const address = await this.data.getAddress(addressId);
-        if (!address) return;
-
-        const modal = document.getElementById('delivery-modal');
-        document.getElementById('modal-address-order').textContent = `#${address.order}`;
-        document.getElementById('modal-address-text').textContent = address.address;
-
-        // Show status and history
-        const status = await this.data.getAddressStatus(address.id, this.currentDateKey);
-        const events = await this.data.getEventsForDate(this.currentDateKey);
-        const addressEvents = events.filter(e => e.addressId === address.id);
-        const notes = await this.data.getNotesForAddress(address.id);
-
-        const statusDisplay = document.getElementById('modal-status-display');
-        statusDisplay.innerHTML = `<div class="address-status ${status}">${this.getStatusLabel(status)}</div>`;
-
-        const historyDiv = document.getElementById('modal-history');
-        historyDiv.innerHTML = '';
-
-        if (addressEvents.length > 0) {
-            historyDiv.innerHTML = '<div style="font-weight: 600; margin-bottom: 8px;">Today\'s History:</div>';
-            addressEvents.forEach(event => {
-                const historyItem = document.createElement('div');
-                historyItem.className = 'history-item';
-                historyItem.innerHTML = `
-                    <div class="history-status">${event.action === 'delivered' ? '✓ Delivered' : '↻ Revisit'}</div>
-                    <div class="history-time">${this.data.formatTime(event.timestamp)} by ${event.userName}</div>
-                `;
-                historyDiv.appendChild(historyItem);
-            });
-        }
-
-        // Clear note input
-        document.getElementById('modal-note-input').value = '';
-
-        // Store current address ID for actions
-        modal.dataset.addressId = addressId;
-        modal.style.display = 'flex';
-    }
-
-    /**
-     * Close delivery modal
-     */
-    closeDeliveryModal() {
-        document.getElementById('delivery-modal').style.display = 'none';
-    }
-
-    /**
-     * Handle delivery action
-     */
-    async handleDeliveryAction(action) {
-        const modal = document.getElementById('delivery-modal');
-        const addressId = modal.dataset.addressId;
-        const activeUser = await this.data.getActiveUser();
-
-        if (!activeUser) {
-            this.showToast('Please select a user first', 'warning');
-            return;
-        }
-
-        const note = document.getElementById('modal-note-input').value;
-
-        try {
-            if (action === 'delivered') {
-                await this.data.recordDelivery(addressId, activeUser.id, note);
-            } else if (action === 'revisit') {
-                await this.data.recordRevisit(addressId, activeUser.id, note);
-            }
-
-            this.closeDeliveryModal();
-            await this.updateAll();
-            
-            this.showToast(`Address marked as ${action}`, 'success');
-            this.showUndoNotification();
-        } catch (error) {
-            this.showToast('Failed to record action: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Show undo notification
-     */
-    showUndoNotification() {
-        const container = document.getElementById('toast-container');
-        const undoDiv = document.createElement('div');
-        undoDiv.className = 'undo-notification';
-        undoDiv.innerHTML = `
-            <span>Action recorded</span>
-            <button class="btn btn-small" id="undo-btn-temp">UNDO</button>
-        `;
-        container.appendChild(undoDiv);
-
-        const undoBtn = undoDiv.querySelector('#undo-btn-temp');
-        let timeLeft = 4;
-        let canUndo = true;
-
-        const timer = setInterval(() => {
-            timeLeft--;
-            if (timeLeft <= 0) {
-                clearInterval(timer);
-                undoDiv.style.animation = 'slideDown 0.3s ease forwards';
-                setTimeout(() => undoDiv.remove(), 300);
-                canUndo = false;
-            }
-        }, 1000);
-
-        undoBtn.addEventListener('click', async () => {
-            if (!canUndo) return;
-            clearInterval(timer);
-            canUndo = false;
-
-            try {
-                await this.data.undoLastAction();
-                await this.updateAll();
-                this.showToast('Action undone', 'success');
-                undoDiv.remove();
-            } catch (error) {
-                this.showToast('Failed to undo: ' + error.message, 'error');
-                undoDiv.remove();
-            }
-        });
-    }
-
-    /**
-     * Open addresses management modal
-     */
-    async openAddressesModal() {
-        const addresses = await this.data.getAllAddresses();
-        const activeAddresses = addresses.filter(a => a.active);
-
-        const list = document.getElementById('addresses-edit-list');
-        list.innerHTML = '';
-
-        activeAddresses.forEach(address => {
-            const item = document.createElement('div');
-            item.className = 'address-item';
-            item.style.cssText = `
-                background-color: white;
-                border: 1px solid #d5dbdb;
-                border-radius: 8px;
-                padding: 12px;
-                margin-bottom: 10px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            `;
-
-            const textDiv = document.createElement('div');
-            textDiv.style.cssText = 'flex: 1;';
-            textDiv.innerHTML = `
-                <div style="font-weight: 600; margin-bottom: 4px;">
-                    #${address.order} - ${address.address}
-                </div>
-                <input type="text" class="form-input" style="font-size: 13px;" placeholder="Edit address" value="${address.address}" data-address-id="${address.id}" style="margin-bottom: 8px;">
-            `;
-
-            const buttonsDiv = document.createElement('div');
-            buttonsDiv.style.cssText = 'display: flex; gap: 8px;';
-
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn btn-small btn-primary';
-            editBtn.textContent = '✓ Save';
-            editBtn.onclick = async () => {
-                const input = textDiv.querySelector('input');
-                try {
-                    await this.data.updateAddress(address.id, input.value);
-                    await this.openAddressesModal();
-                    this.showToast('Address updated', 'success');
-                } catch (error) {
-                    this.showToast(error.message, 'error');
-                }
-            };
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn btn-small btn-danger';
-            deleteBtn.textContent = '✕ Delete';
-            deleteBtn.onclick = async () => {
-                try {
-                    await this.data.deleteAddress(address.id);
-                    await this.openAddressesModal();
-                    this.showToast('Address deleted', 'success');
-                } catch (error) {
-                    this.showToast(error.message, 'error');
-                }
-            };
-
-            buttonsDiv.appendChild(editBtn);
-            buttonsDiv.appendChild(deleteBtn);
-
-            item.appendChild(textDiv);
-            item.appendChild(buttonsDiv);
-            list.appendChild(item);
-        });
-
-        document.getElementById('addresses-modal').style.display = 'flex';
-    }
-
-    /**
-     * Close addresses modal
-     */
-    closeAddressesModal() {
-        document.getElementById('addresses-modal').style.display = 'none';
-    }
-
-    /**
-     * Handle address import
-     */
-    async handleAddressImport() {
-        const fileInput = document.getElementById('import-file');
-        const pasteArea = document.getElementById('paste-addresses');
-
-        let text = '';
-
-        if (fileInput.files.length > 0) {
-            text = await fileInput.files[0].text();
-        } else {
-            text = pasteArea.value;
-        }
-
-        if (!text.trim()) {
-            this.showToast('No addresses to import', 'warning');
-            return;
-        }
-
-        try {
-            const imported = await this.data.importAddresses(text);
-            fileInput.value = '';
-            pasteArea.value = '';
-            await this.updateAll();
-            this.showToast(`Imported ${imported.length} addresses`, 'success');
-        } catch (error) {
-            this.showToast('Failed to import: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Handle add address
-     */
-    async handleAddAddress() {
-        const input = document.getElementById('add-address-input');
-        const address = input.value;
-
-        if (!address.trim()) {
-            this.showToast('Address cannot be empty', 'warning');
-            return;
-        }
-
-        try {
-            await this.data.addAddress(address);
-            input.value = '';
-            await this.openAddressesModal();
-            this.showToast('Address added', 'success');
-        } catch (error) {
-            this.showToast(error.message, 'error');
-        }
-    }
-
-    /**
-     * Update history
-     */
-    async updateHistory() {
-        const userFilter = document.getElementById('filter-user').value;
-        const dateRangeFilter = document.getElementById('filter-date-range').value;
-        const statusFilter = document.getElementById('filter-status').value;
-        const addressSearch = document.getElementById('filter-address').value;
-
-        const filters = {};
-
-        if (userFilter) filters.userId = userFilter;
-        if (statusFilter) filters.action = statusFilter;
-        if (addressSearch) filters.addressSearch = addressSearch;
-
-        // Handle date range
-        if (dateRangeFilter === 'today') {
-            filters.dateKey = this.data._getToday();
-        } else if (dateRangeFilter === 'week') {
-            const range = this.data.getThisWeekRange();
-            filters.startDate = range.start;
-            filters.endDate = range.end;
-        } else if (dateRangeFilter === 'month') {
-            const range = this.data.getThisMonthRange();
-            filters.startDate = range.start;
-            filters.endDate = range.end;
-        } else if (dateRangeFilter === 'custom') {
-            const startDate = document.getElementById('filter-start-date').value;
-            const endDate = document.getElementById('filter-end-date').value;
-            if (startDate && endDate) {
-                filters.startDate = startDate;
-                filters.endDate = endDate;
-            }
-        }
-
-        const events = await this.data.getHistory(filters);
-        const container = document.getElementById('history-container');
-        const emptyState = document.getElementById('history-empty-state');
-
-        if (events.length === 0) {
-            container.innerHTML = '';
-            emptyState.style.display = 'flex';
-            return;
-        }
-
-        emptyState.style.display = 'none';
-        container.innerHTML = '';
-
-        events.forEach(event => {
-            const eventDiv = document.createElement('div');
-            eventDiv.className = 'history-event';
-            eventDiv.innerHTML = `
-                <div class="event-address">${event.address}</div>
-                <div class="event-status ${event.action}">${event.action === 'delivered' ? '✓ Delivered' : '↻ Revisit'}</div>
-                <div class="event-meta">
-                    <span class="event-user">${event.userName}</span>
-                    <span>${this.data.formatDateTime(event.timestamp)}</span>
-                </div>
-            `;
-            container.appendChild(eventDiv);
-        });
-
-        // Populate filter dropdowns
-        this.updateFilterDropdowns();
-    }
-
-    /**
-     * Update filter dropdowns
-     */
-    async updateFilterDropdowns() {
-        const users = await this.data.getUsers();
-        const userSelect = document.getElementById('filter-user');
-        const currentValue = userSelect.value;
-
-        userSelect.innerHTML = '<option value="">All Users</option>';
-        users.forEach(user => {
-            const option = document.createElement('option');
-            option.value = user.id;
-            option.textContent = user.name;
-            userSelect.appendChild(option);
-        });
-
-        userSelect.value = currentValue;
-    }
-
-    /**
-     * Update statistics
-     */
-    async updateStatistics(period) {
-        let startDate, endDate;
-
-        if (period === 'today') {
-            startDate = this.data._getToday();
-            endDate = this.data._getToday();
-        } else if (period === 'week') {
-            const range = this.data.getThisWeekRange();
-            startDate = range.start;
-            endDate = range.end;
-        } else if (period === 'month') {
-            const range = this.data.getThisMonthRange();
-            startDate = range.start;
-            endDate = range.end;
-        }
-
-        const stats = await this.data.getStatisticsForPeriod(startDate, endDate);
-        const container = document.getElementById('statistics-container');
-        const emptyState = document.getElementById('statistics-empty-state');
-
-        if (stats.uniqueAddressesDeliveredCount === 0 && stats.totalRevisits === 0) {
-            container.innerHTML = '';
-            emptyState.style.display = 'flex';
-            return;
-        }
-
-        emptyState.style.display = 'none';
-        container.innerHTML = '';
-
-        // Main stats
-        const mainStats = `
-            <div class="stat-card">
-                <div class="stat-card-title">Delivered</div>
-                <div class="stat-card-value">${stats.uniqueAddressesDeliveredCount}</div>
-                <div class="stat-card-subtext">${stats.percentage}% Complete</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-title">Revisits</div>
-                <div class="stat-card-value">${stats.totalRevisits}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-title">Total Events</div>
-                <div class="stat-card-value">${stats.totalEvents}</div>
-            </div>
-        `;
-
-        container.innerHTML = mainStats;
-
-        // User breakdown
-        if (Object.keys(stats.deliveriesByUser).length > 0) {
-            const userBreakdown = document.createElement('div');
-            userBreakdown.style.cssText = 'margin-top: 20px;';
-            userBreakdown.innerHTML = '<h3 style="margin-bottom: 12px; color: var(--primary-color);">Deliveries by User</h3>';
-            
-            const userGrid = document.createElement('div');
-            userGrid.className = 'user-breakdown';
-
-            Object.entries(stats.deliveriesByUser).forEach(([userId, userStats]) => {
-                const userCard = document.createElement('div');
-                userCard.className = 'user-stat-card';
-                userCard.innerHTML = `
-                    <div class="user-stat-name">${userStats.name}</div>
-                    <div class="user-stat-item">Delivered: <strong>${userStats.delivered}</strong></div>
-                    <div class="user-stat-item">Revisits: <strong>${userStats.revisits}</strong></div>
-                `;
-                userGrid.appendChild(userCard);
-            });
-
-            userBreakdown.appendChild(userGrid);
-            container.appendChild(userBreakdown);
-        }
-    }
-
-    /**
-     * Update users section
-     */
-    async updateUsers() {
-        const users = await this.data.getUsers();
-        const container = document.getElementById('users-container');
-        const emptyState = document.getElementById('users-empty-state');
-
-        if (users.length === 0) {
-            container.innerHTML = '';
-            emptyState.style.display = 'flex';
-            return;
-        }
-
-        emptyState.style.display = 'none';
-        container.innerHTML = '';
-
-        users.forEach(user => {
-            const userItem = document.createElement('div');
-            userItem.className = 'user-item';
-
-            const info = document.createElement('div');
-            info.className = 'user-info';
-            info.innerHTML = `
-                <div class="user-name">${user.name}</div>
-                <div style="font-size: 12px; color: var(--medium-gray);">Created: ${this.data.formatDate(user.createdAt.split('T')[0])}</div>
-            `;
-
-            const actions = document.createElement('div');
-            actions.className = 'user-actions';
-
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn btn-small btn-primary';
-            editBtn.textContent = 'Edit';
-            editBtn.onclick = () => {
-                const newName = prompt(`Edit user name:`, user.name);
-                if (newName && newName.trim()) {
-                    this.data.updateUser(user.id, newName).then(() => {
-                        this.updateUsers();
-                        this.showToast('User updated', 'success');
-                    }).catch(err => this.showToast(err.message, 'error'));
-                }
-            };
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn btn-small btn-danger';
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.onclick = async () => {
-                try {
-                    await this.data.deleteUser(user.id);
-                    await this.updateAll();
-                    this.showToast('User deleted', 'success');
-                } catch (error) {
-                    this.showConfirmation(
-                        'Delete User',
-                        `This user has delivery history. Are you sure you want to delete "${user.name}"?`,
-                        async () => {
-                            // Force delete by clearing user history first
-                            const events = await this.data.db.getByIndex('deliveryEvents', 'userId', user.id);
-                            for (const event of events) {
-                                await this.data.db.delete('deliveryEvents', event.id);
-                            }
-                            const notes = await this.data.db.getByIndex('notes', 'userId', user.id);
-                            for (const note of notes) {
-                                await this.data.db.delete('notes', note.id);
-                            }
-                            await this.data.deleteUser(user.id);
-                            await this.updateAll();
-                            this.showToast('User deleted', 'success');
-                        }
-                    );
-                }
-            };
-
-            actions.appendChild(editBtn);
-            actions.appendChild(deleteBtn);
-
-            userItem.appendChild(info);
-            userItem.appendChild(actions);
-            container.appendChild(userItem);
-        });
-    }
-
-    /**
-     * Update settings page
-     */
-    async updateSettings() {
-        const addresses = await this.data.getAddresses();
-        document.getElementById('route-count').textContent = addresses.length;
-    }
-
-    /**
-     * Handle backup
-     */
-    async handleBackup() {
-        try {
-            const backup = await this.data.db.exportData();
-            const json = JSON.stringify(backup, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `flyer-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            this.showToast('Backup created successfully', 'success');
-        } catch (error) {
-            this.showToast('Backup failed: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Handle restore
-     */
-    async handleRestore(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        try {
-            const text = await file.text();
-            const backup = JSON.parse(text);
-
-            this.showConfirmation(
-                'Restore Backup',
-                'This will replace all current data with the backup. This cannot be undone.',
-                async () => {
-                    try {
-                        await this.data.db.importData(backup);
-                        await this.updateAll();
-                        this.showToast('Backup restored successfully', 'success');
-                        event.target.value = '';
-                    } catch (error) {
-                        this.showToast('Restore failed: ' + error.message, 'error');
-                    }
-                }
-            );
-        } catch (error) {
-            this.showToast('Invalid backup file: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Handle CSV export
-     */
-    async handleExportCSV() {
-        try {
-            const events = await this.data.getHistory();
-            
-            let csv = 'Date,Time,User,Address,Status,Note\n';
-
-            for (const event of events) {
-                const date = this.data.formatDate(event.dateKey);
-                const time = this.data.formatTime(event.timestamp);
-                const notes = await this.data.getNotesForAddress(event.addressId);
-                const noteText = notes.length > 0 ? notes[0].text : '';
-
-                const row = [
-                    date,
-                    time,
-                    event.userName,
-                    `"${event.address.replace(/"/g, '""')}"`,
-                    event.action === 'delivered' ? 'Delivered' : 'Revisit',
-                    `"${noteText.replace(/"/g, '""')}"`
-                ].join(',');
-
-                csv += row + '\n';
-            }
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `flyer-tracker-history-${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            this.showToast('CSV exported successfully', 'success');
-        } catch (error) {
-            this.showToast('Export failed: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Show toast notification
-     */
-    showToast(message, type = 'info') {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.style.animation = 'slideOut 0.3s ease forwards';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    /**
-     * Show confirmation dialog
-     */
-    showConfirmation(title, message, onConfirm) {
-        const modal = document.getElementById('confirm-modal');
-        document.getElementById('confirm-title').textContent = title;
-        document.getElementById('confirm-message').textContent = message;
-
-        const yesBtn = document.getElementById('confirm-yes-btn');
-        const noBtn = document.getElementById('confirm-no-btn');
-
-        const handleYes = () => {
-            modal.style.display = 'none';
-            yesBtn.removeEventListener('click', handleYes);
-            noBtn.removeEventListener('click', handleNo);
-            onConfirm();
-        };
-
-        const handleNo = () => {
-            modal.style.display = 'none';
-            yesBtn.removeEventListener('click', handleYes);
-            noBtn.removeEventListener('click', handleNo);
-        };
-
-        yesBtn.addEventListener('click', handleYes);
-        noBtn.addEventListener('click', handleNo);
-
-        modal.style.display = 'flex';
-    }
+    const delivered = events.filter(e => e.action === 'delivered').length;
+    const addresses = await this.data.getAddresses();
+    this.continueSessionTextEl.textContent = `You have ${delivered} / ${addresses.length} delivered today. Continue?`;
+    this.continueSessionSection.hidden = false;
+  }
+
+  async resumeSession() {
+    this.continueSessionSection.hidden = true;
+    this.showToast('Session resumed.', 'success');
+    this.goToPage('delivery');
+  }
 }
 
-// Initialize UI manager
-const ui = new UIManager(data);
+const ui = new UI(db, data);

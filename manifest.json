@@ -1,49 +1,29 @@
 {
-  "name": "Flyer Delivery Tracker",
-  "short_name": "Flyer Tracker",
-  "description": "Mobile-first offline delivery tracking application for flyer deliveries",
+  "name": "Flyer Tracker",
+  "short_name": "FlyerTracker",
+  "description": "Offline-first flyer delivery tracking app.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#2c3e50",
-  "categories": ["productivity"],
-  "screenshots": [
-    {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232c3e50' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>FDT</text></svg>",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
-    }
-  ],
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232c3e50' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>FDT</text></svg>",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232c3e50' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>FDT</text></svg>",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/maskable-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Route",
-      "short_name": "Route",
-      "description": "View and track delivery route",
-      "url": "./index.html?page=route",
-      "icons": []
-    },
-    {
-      "name": "History",
-      "short_name": "History",
-      "description": "View delivery history",
-      "url": "./index.html?page=history",
-      "icons": []
     }
   ]
 }

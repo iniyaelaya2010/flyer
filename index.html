@@ -1,383 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Flyer Delivery Tracker - Offline mobile app for tracking home deliveries">
-    <meta name="theme-color" content="#2c3e50">
-    <title>Flyer Delivery Tracker</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" sizes="192x192" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%232c3e50' width='192' height='192'/><text x='50%' y='50%' font-size='120' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>FDT</text></svg>">
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <title>Flyer Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app-container">
-        <!-- Navigation -->
-        <nav class="main-nav">
-            <button class="nav-btn active" data-page="route" title="Route">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-label">Route</span>
-            </button>
-            <button class="nav-btn" data-page="history" title="History">
-                <span class="nav-icon">📊</span>
-                <span class="nav-label">History</span>
-            </button>
-            <button class="nav-btn" data-page="statistics" title="Statistics">
-                <span class="nav-icon">📈</span>
-                <span class="nav-label">Stats</span>
-            </button>
-            <button class="nav-btn" data-page="users" title="Users">
-                <span class="nav-icon">👥</span>
-                <span class="nav-label">Users</span>
-            </button>
-            <button class="nav-btn" data-page="settings" title="Settings">
-                <span class="nav-icon">⚙️</span>
-                <span class="nav-label">Settings</span>
-            </button>
-        </nav>
-
-        <!-- Pages Container -->
-        <main class="pages-container">
-            <!-- Route Page -->
-            <div id="page-route" class="page active">
-                <header class="page-header">
-                    <h1>Flyer Delivery Tracker</h1>
-                    <div class="user-selector">
-                        <label for="user-select">Current User:</label>
-                        <select id="user-select">
-                            <option value="">-- Select User --</option>
-                        </select>
-                    </div>
-                </header>
-
-                <section class="progress-section">
-                    <div class="progress-stat">
-                        <div class="stat-label">Today's Progress</div>
-                        <div class="stat-value"><span id="delivered-count">0</span> / <span id="total-count">0</span></div>
-                    </div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar">
-                            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
-                        </div>
-                        <div id="progress-percentage" class="progress-percentage">0%</div>
-                    </div>
-                    <div class="progress-stats">
-                        <div class="stat">
-                            <span class="stat-icon">✓</span>
-                            <span class="stat-text">Delivered: <strong id="stat-delivered">0</strong></span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-icon">↻</span>
-                            <span class="stat-text">Revisit: <strong id="stat-revisit">0</strong></span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-icon">⏳</span>
-                            <span class="stat-text">Remaining: <strong id="stat-remaining">0</strong></span>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="route-search">
-                    <input 
-                        type="text" 
-                        id="address-search" 
-                        class="search-input" 
-                        placeholder="Search addresses..."
-                        aria-label="Search addresses"
-                    >
-                </section>
-
-                <section id="addresses-container" class="addresses-container">
-                    <!-- Addresses will be loaded here -->
-                </section>
-
-                <div id="route-empty-state" class="empty-state">
-                    <div class="empty-state-icon">📋</div>
-                    <h2>No Route Loaded</h2>
-                    <p>Add or import your delivery addresses to get started.</p>
-                    <button class="btn btn-primary" onclick="app.goToPage('settings')">Go to Settings</button>
-                </div>
-            </div>
-
-            <!-- History Page -->
-            <div id="page-history" class="page">
-                <header class="page-header">
-                    <h1>Delivery History</h1>
-                </header>
-
-                <section class="filter-section">
-                    <div class="filter-group">
-                        <label for="filter-user">User:</label>
-                        <select id="filter-user">
-                            <option value="">All Users</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-date-range">Date Range:</label>
-                        <select id="filter-date-range">
-                            <option value="">All Time</option>
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="custom">Custom Range</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-status">Status:</label>
-                        <select id="filter-status">
-                            <option value="">All</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="revisit">Revisit</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <input 
-                            type="text" 
-                            id="filter-address" 
-                            class="filter-input" 
-                            placeholder="Search address..."
-                            aria-label="Filter by address"
-                        >
-                    </div>
-                </section>
-
-                <div class="filter-controls">
-                    <button class="btn btn-small" id="apply-filters">Apply Filters</button>
-                    <button class="btn btn-small btn-secondary" id="clear-filters">Clear</button>
-                </div>
-
-                <div id="custom-date-range" class="custom-date-range" style="display: none;">
-                    <label for="filter-start-date">From:</label>
-                    <input type="date" id="filter-start-date">
-                    <label for="filter-end-date">To:</label>
-                    <input type="date" id="filter-end-date">
-                </div>
-
-                <section id="history-container" class="history-container">
-                    <!-- History events will be loaded here -->
-                </section>
-
-                <div id="history-empty-state" class="empty-state">
-                    <div class="empty-state-icon">📭</div>
-                    <h2>No History Yet</h2>
-                    <p>Delivery events will appear here as you mark addresses as delivered or revisited.</p>
-                </div>
-            </div>
-
-            <!-- Statistics Page -->
-            <div id="page-statistics" class="page">
-                <header class="page-header">
-                    <h1>Statistics</h1>
-                </header>
-
-                <section class="period-selector">
-                    <button class="period-btn active" data-period="today">Today</button>
-                    <button class="period-btn" data-period="week">This Week</button>
-                    <button class="period-btn" data-period="month">This Month</button>
-                </section>
-
-                <section id="statistics-container" class="statistics-container">
-                    <!-- Statistics will be loaded here -->
-                </section>
-
-                <div id="statistics-empty-state" class="empty-state">
-                    <div class="empty-state-icon">📈</div>
-                    <h2>No Data Available</h2>
-                    <p>Statistics will appear after you start tracking deliveries.</p>
-                </div>
-            </div>
-
-            <!-- Users Page -->
-            <div id="page-users" class="page">
-                <header class="page-header">
-                    <h1>Manage Users</h1>
-                </header>
-
-                <section class="add-user-form">
-                    <div class="form-group">
-                        <label for="new-user-input">Add New User:</label>
-                        <input 
-                            type="text" 
-                            id="new-user-input" 
-                            class="form-input" 
-                            placeholder="Enter user name"
-                            aria-label="New user name"
-                        >
-                    </div>
-                    <button class="btn btn-primary" id="add-user-btn">+ Add User</button>
-                </section>
-
-                <section id="users-container" class="users-container">
-                    <!-- Users will be listed here -->
-                </section>
-
-                <div id="users-empty-state" class="empty-state">
-                    <div class="empty-state-icon">👤</div>
-                    <h2>No Users Yet</h2>
-                    <p>Add a user to start tracking deliveries. No passwords required.</p>
-                </div>
-            </div>
-
-            <!-- Settings Page -->
-            <div id="page-settings" class="page">
-                <header class="page-header">
-                    <h1>Settings</h1>
-                </header>
-
-                <section class="settings-section">
-                    <h2>Address Management</h2>
-                    <div class="settings-group">
-                        <h3>Import Addresses</h3>
-                        <p class="text-muted">Upload a CSV/text file or paste addresses (one per line)</p>
-                        <div class="import-controls">
-                            <input 
-                                type="file" 
-                                id="import-file" 
-                                accept=".csv,.txt"
-                                aria-label="Import address file"
-                            >
-                            <textarea 
-                                id="paste-addresses" 
-                                class="form-textarea" 
-                                placeholder="Or paste addresses here, one per line..."
-                                aria-label="Paste addresses"
-                            ></textarea>
-                            <button class="btn btn-primary" id="import-addresses-btn">Import Addresses</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-group">
-                        <h3>Current Route</h3>
-                        <p class="text-muted">Total addresses: <strong id="route-count">0</strong></p>
-                        <button class="btn btn-secondary" id="view-addresses-btn">View & Edit Addresses</button>
-                        <button class="btn btn-secondary" id="reset-route-btn">Reset Route</button>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h2>Data Management</h2>
-                    <div class="settings-group">
-                        <h3>Backup & Restore</h3>
-                        <p class="text-muted">Export all data as JSON for safekeeping</p>
-                        <button class="btn btn-primary" id="backup-btn">💾 Backup All Data</button>
-                        <button class="btn btn-primary" id="restore-btn">📂 Restore from Backup</button>
-                        <input type="file" id="restore-file" accept=".json" style="display: none;">
-                    </div>
-
-                    <div class="settings-group">
-                        <h3>Export History</h3>
-                        <p class="text-muted">Download delivery history as CSV</p>
-                        <button class="btn btn-primary" id="export-csv-btn">📋 Export CSV</button>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h2>Danger Zone</h2>
-                    <div class="settings-group">
-                        <h3>Delete All Data</h3>
-                        <p class="text-muted">⚠️ This will permanently delete all users, addresses, and delivery history.</p>
-                        <button class="btn btn-danger" id="delete-all-btn">Delete All Data</button>
-                    </div>
-                </section>
-
-                <section class="settings-section">
-                    <h2>About</h2>
-                    <div class="about-info">
-                        <p><strong>Flyer Delivery Tracker</strong></p>
-                        <p>Version 1.0.0</p>
-                        <p>A mobile-first offline delivery tracking application.</p>
-                        <p>All data is stored locally on your device. No internet connection required for normal use.</p>
-                    </div>
-                </section>
-            </div>
-        </main>
-    </div>
-
-    <!-- Modal for editing/viewing an address during delivery -->
-    <div id="delivery-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-address-order">#1</h2>
-                <button class="modal-close" onclick="app.closeDeliveryModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="modal-address-text" class="address-large"></div>
-                <div id="modal-status-display" class="status-display"></div>
-                <div id="modal-history" class="modal-history"></div>
-                <div class="form-group">
-                    <label for="modal-note-input">Add Note (optional):</label>
-                    <textarea 
-                        id="modal-note-input" 
-                        class="form-textarea" 
-                        placeholder="e.g., Gate locked, Left at door, etc."
-                        aria-label="Add note"
-                    ></textarea>
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-success large" id="modal-delivered-btn">✓ DELIVERED</button>
-                <button class="btn btn-warning large" id="modal-revisit-btn">↻ REVISIT</button>
-                <button class="btn btn-secondary" id="modal-close-btn">Back</button>
-            </div>
+  <div id="app-container">
+    <!-- Top sticky progress bar -->
+    <header class="page-header">
+      <div class="header-main">
+        <div>
+          <h1>Flyer Tracker</h1>
+          <p class="header-sub">
+            <span id="current-user-label">User: <span id="current-user-name">—</span></span>
+          </p>
         </div>
-    </div>
-
-    <!-- Modal for viewing addresses list -->
-    <div id="addresses-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Manage Addresses</h2>
-                <button class="modal-close" onclick="app.closeAddressesModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="add-address-input">Add New Address:</label>
-                    <input 
-                        type="text" 
-                        id="add-address-input" 
-                        class="form-input" 
-                        placeholder="e.g., 245 Cedar Street"
-                        aria-label="New address"
-                    >
-                    <button class="btn btn-small btn-primary" id="add-address-btn">+ Add</button>
-                </div>
-                <div id="addresses-edit-list" class="addresses-edit-list">
-                    <!-- Addresses will be listed here for editing -->
-                </div>
-            </div>
+        <div class="weekly-timer">
+          <div id="weekly-timer-text">Loading timer…</div>
+          <div id="online-status" class="status-pill status-offline">🔴 Offline</div>
         </div>
-    </div>
-
-    <!-- Toast notifications -->
-    <div id="toast-container" class="toast-container"></div>
-
-    <!-- Confirmation Modal -->
-    <div id="confirm-modal" class="modal" style="display: none;">
-        <div class="modal-content modal-small">
-            <div class="modal-header">
-                <h2 id="confirm-title">Confirm Action</h2>
-            </div>
-            <div class="modal-body">
-                <p id="confirm-message"></p>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-primary" id="confirm-yes-btn">Yes, Proceed</button>
-                <button class="btn btn-secondary" id="confirm-no-btn">Cancel</button>
-            </div>
+      </div>
+      <div class="progress-summary">
+        <div class="progress-main">
+          <div class="progress-count">
+            <span id="progress-delivered">0</span> /
+            <span id="progress-total">0</span>
+          </div>
+          <div class="progress-percent" id="progress-percent">0%</div>
         </div>
-    </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="progress-stats">
+          <div class="stat">
+            <span class="stat-icon">🟢</span>
+            <span class="stat-text">
+              Delivered
+              <strong id="stat-delivered">0</strong>
+            </span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">🟠</span>
+            <span class="stat-text">
+              Revisit
+              <strong id="stat-revisit">0</strong>
+            </span>
+          </div>
+          <div class="stat">
+            <span class="stat-icon">⚪</span>
+            <span class="stat-text">
+              Remaining
+              <strong id="stat-remaining">0</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
 
-    <script src="db.js"></script>
-    <script src="data.js"></script>
-    <script src="ui.js"></script>
-    <script src="app.js"></script>
-    <script>
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('service-worker.js')
-                .then(reg => console.log('Service Worker registered'))
-                .catch(err => console.log('Service Worker registration failed:', err));
-        }
-    </script>
+    <!-- Pages -->
+    <main class="pages-container">
+      <!-- Delivery page -->
+      <section class="page active" id="page-delivery">
+        <div class="delivery-main">
+          <section class="delivery-session">
+            <h2>THIS WEEK</h2>
+            <p class="session-info" id="session-info">No active session</p>
+            <p class="deadline-text" id="deadline-text">Delivery window not configured</p>
+          </section>
+
+          <section class="next-delivery">
+            <h2>NEXT DELIVERY</h2>
+            <div id="next-address-block" class="next-address-block">
+              <p class="next-address-line" id="next-address-line-1">No address</p>
+              <p class="next-address-line" id="next-address-line-2"></p>
+              <p class="next-address-line" id="next-address-line-3"></p>
+            </div>
+
+            <div class="delivery-actions">
+              <button class="btn btn-secondary" id="btn-navigate">🧭 Navigate</button>
+              <button class="btn btn-success btn-large" id="btn-delivered">✅ Delivered</button>
+              <button class="btn btn-warning" id="btn-revisit">🔄 Revisit</button>
+              <button class="btn btn-primary" id="btn-note">📝 Note</button>
+            </div>
+          </section>
+
+          <section class="continue-session" id="continue-session-section" hidden>
+            <h2>Continue Delivery?</h2>
+            <p id="continue-session-text"></p>
+            <button class="btn btn-primary" id="btn-continue-session">Continue</button>
+          </section>
+        </div>
+      </section>
+
+      <!-- Route / addresses page -->
+      <section class="page" id="page-route">
+        <div class="route-search">
+          <input type="text" id="route-search-input" class="search-input" placeholder="Search address, unit, postal code…">
+        </div>
+        <div class="filter-controls">
+          <button class="btn btn-secondary" id="btn-original-order">Original Order</button>
+          <button class="btn btn-secondary" id="btn-nearest-first">Nearest → Farthest</button>
+          <button class="btn btn-secondary" id="btn-farthest-first">Farthest → Nearest</button>
+        </div>
+        <div class="addresses-container" id="addresses-container">
+          <!-- address cards -->
+        </div>
+        <div class="settings-section">
+          <h2>Route Import</h2>
+          <div class="settings-group">
+            <p>Paste your address list (one per line):</p>
+            <textarea id="import-text" class="form-textarea" placeholder="825 Cook St Unit 4&#10;825 Cook St Apt 7&#10;..."></textarea>
+            <button class="btn btn-primary" id="btn-preview-import">Preview Import</button>
+            <p class="text-muted" id="import-summary"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- History page -->
+      <section class="page" id="page-history">
+        <div class="filter-section">
+          <div class="filter-group">
+            <label>Period</label>
+            <select id="history-period">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>User</label>
+            <select id="history-user"></select>
+          </div>
+          <div class="filter-group">
+            <label>Status</label>
+            <select id="history-status">
+              <option value="">All</option>
+              <option value="delivered">Delivered</option>
+              <option value="revisit">Revisit</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Address</label>
+            <input type="text" id="history-address-search" class="filter-input" placeholder="Search address…">
+          </div>
+        </div>
+        <div class="custom-date-range" id="custom-date-range" hidden>
+          <label>From</label>
+          <input type="date" id="history-start-date">
+          <label>To</label>
+          <input type="date" id="history-end-date">
+        </div>
+        <div class="filter-controls">
+          <button class="btn btn-primary" id="btn-apply-history">Apply</button>
+          <button class="btn btn-secondary" id="btn-clear-history">Clear</button>
+        </div>
+        <div class="history-container" id="history-container"></div>
+      </section>
+
+      <!-- Statistics page -->
+      <section class="page" id="page-stats">
+        <div class="period-selector">
+          <button class="period-btn active" data-period="today">Today</button>
+          <button class="period-btn" data-period="week">This Week</button>
+          <button class="period-btn" data-period="month">This Month</button>
+        </div>
+        <div class="statistics-container" id="statistics-container"></div>
+      </section>
+
+      <!-- Users page -->
+      <section class="page" id="page-users">
+        <div class="add-user-form">
+          <div class="form-group">
+            <input type="text" id="new-user-name" class="form-input" placeholder="New user name">
+            <button class="btn btn-primary" id="btn-add-user">Add</button>
+          </div>
+        </div>
+        <div class="users-container" id="users-container"></div>
+      </section>
+
+      <!-- Settings page -->
+      <section class="page" id="page-settings">
+        <div class="settings-section">
+          <h2>Weekly Delivery Window</h2>
+          <div class="settings-group">
+            <p>Configure your weekly delivery period (America/Vancouver):</p>
+            <label>Start (day + time)</label>
+            <input type="datetime-local" id="weekly-start">
+            <label>End (day + time)</label>
+            <input type="datetime-local" id="weekly-end">
+            <button class="btn btn-primary" id="btn-save-weekly">Save Window</button>
+            <p class="text-muted">Example: Thursday 00:00 → Friday 17:00.</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2>Backup & Export</h2>
+          <div class="settings-group">
+            <button class="btn btn-primary" id="btn-export-backup">Export Backup (JSON)</button>
+            <button class="btn btn-secondary" id="btn-import-backup">Import Backup (JSON)</button>
+            <input type="file" id="backup-file" accept="application/json" hidden>
+            <p class="text-muted">Backup includes users, addresses, sessions, events, notes, settings.</p>
+          </div>
+          <div class="settings-group">
+            <button class="btn btn-primary" id="btn-export-csv">Export CSV (Current Week)</button>
+            <p class="text-muted">Spreadsheet-friendly export for your employer.</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2>Screen Awake</h2>
+          <div class="settings-group">
+            <p>Keep screen awake during active delivery session (where supported).</p>
+            <button class="btn btn-secondary" id="btn-toggle-wake-lock">Toggle Screen Awake</button>
+            <p class="text-muted" id="wake-lock-status">Screen awake: off</p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2>About</h2>
+          <div class="about-info">
+            <p>Flyer Tracker — offline-first delivery tracking app.</p>
+            <p>No GPS, no surveillance, private and simple.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom navigation -->
+    <nav class="main-nav">
+      <button class="nav-btn active" data-page="delivery">
+        <span class="nav-icon">🚚</span>
+        <span class="nav-label">Delivery</span>
+      </button>
+      <button class="nav-btn" data-page="route">
+        <span class="nav-icon">📍</span>
+        <span class="nav-label">Route</span>
+      </button>
+      <button class="nav-btn" data-page="history">
+        <span class="nav-icon">📜</span>
+        <span class="nav-label">History</span>
+      </button>
+      <button class="nav-btn" data-page="stats">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Stats</span>
+      </button>
+      <button class="nav-btn" data-page="users">
+        <span class="nav-icon">👤</span>
+        <span class="nav-label">Users</span>
+      </button>
+      <button class="nav-btn" data-page="settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Undo notification -->
+  <div class="undo-notification" id="undo-notification" hidden>
+    <span id="undo-text">Last action recorded.</span>
+    <button class="btn btn-secondary btn-small" id="btn-undo">Undo</button>
+  </div>
+
+  <!-- Simple note modal -->
+  <div class="modal" id="note-modal" hidden>
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Add Note</h2>
+        <button class="modal-close" id="note-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="note-modal-address"></p>
+        <textarea id="note-text" class="form-textarea" placeholder="Gate locked, no flyer box, come back later…"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="note-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="note-modal-save">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="db.js"></script>
+  <script src="data.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js').catch(console.error);
+    }
+  </script>
 </body>
 </html>

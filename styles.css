@@ -1216,3 +1216,10 @@ textarea:focus {
         display: block !important;
     }
 }
+#delivery-map {
+    width: 100%;
+    height: 300px;
+    border-radius: 10px;
+    margin: 12px;
+    box-shadow: var(--shadow);
+}
